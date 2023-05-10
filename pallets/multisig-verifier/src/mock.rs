@@ -32,6 +32,7 @@ use crate as trusted_verifier;
 use bridge_types::{traits::OutboundChannel, SubNetworkId};
 use frame_support::{parameter_types, traits::Everything};
 use frame_system as system;
+use system::RawOrigin;
 use sp_core::H256;
 use sp_runtime::{
     testing::Header,
@@ -111,7 +112,9 @@ impl OutboundChannel<SubNetworkId, AccountId, ()> for TestOutboundChannel {
 }
 
 pub struct TestCallOrigin;
-impl<OuterOrigin> frame_support::traits::EnsureOrigin<OuterOrigin> for TestCallOrigin {
+impl<
+    OuterOrigin: From<RawOrigin<AccountId>>,
+    > frame_support::traits::EnsureOrigin<OuterOrigin> for TestCallOrigin {
     type Success = bridge_types::types::CallOriginOutput<SubNetworkId, H256, ()>;
 
     fn try_origin(_o: OuterOrigin) -> Result<Self::Success, OuterOrigin> {
@@ -125,6 +128,11 @@ impl<OuterOrigin> frame_support::traits::EnsureOrigin<OuterOrigin> for TestCallO
             timestamp: 0,
             additional: (),
         })
+    }
+
+    #[cfg(feature = "runtime-benchmarks")]
+	fn try_successful_origin() -> Result<OuterOrigin, ()> {
+        Ok(OuterOrigin::from(RawOrigin::Root))
     }
 }
 

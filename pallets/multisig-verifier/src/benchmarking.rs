@@ -28,9 +28,53 @@
 // STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
 // USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use super::*;
+#![cfg(feature = "runtime-benchmarks")]
 
-// #[allow(unused)]
-// use crate::Pallet as BeefyLightClient;
-// use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, whitelisted_caller};
-// use frame_system::RawOrigin;
+use super::*;
+use crate::*;
+use frame_benchmarking::{benchmarks, whitelisted_caller};
+use frame_system::{RawOrigin, self};
+use sp_core::{ecdsa, Pair};
+use crate::Pallet as MultisigVerifier;
+use bridge_types::EVMChainId;
+
+fn initial_keys() -> Vec<ecdsa::Public> {
+    vec![
+        ecdsa::Pair::generate_with_phrase(Some("Alice")).0.into(),
+        ecdsa::Pair::generate_with_phrase(Some("Bob")).0.into(),
+        ecdsa::Pair::generate_with_phrase(Some("Carol")).0.into(),
+    ]
+}
+
+
+
+fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
+	frame_system::Pallet::<T>::assert_last_event(generic_event.into());
+}
+
+benchmarks! {
+
+    initialize_evm {
+        let network_id = bridge_types::GenericNetworkId::EVM(EVMChainId::from(1));
+        let keys = initial_keys();
+    }: initialize(RawOrigin::Root, network_id, keys)
+    verify {
+        assert_last_event::<T>(Event::NetworkInitialized(network_id).into())
+    }
+
+    // add_peer {
+    //     /* code to set the initial state */
+    // }: _(origin, key)
+    // verify {
+    //     /* optional verification */
+    // }
+
+    // remove_peer {
+    //     /* code to set the initial state */
+    // }: _(origin, key)
+    // verify {
+    //     /* optional verification */
+    // }
+
+    impl_benchmark_test_suite!(MultisigVerifier, crate::mock::new_test_ext(), mock::Test)
+}
