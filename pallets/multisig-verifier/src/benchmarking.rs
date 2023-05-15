@@ -32,49 +32,62 @@
 
 use super::*;
 use crate::*;
-use frame_benchmarking::{benchmarks, whitelisted_caller};
+use frame_benchmarking::{benchmarks};
 use frame_system::{RawOrigin, self};
+use frame_support::assert_ok;
 use sp_core::{ecdsa, Pair};
 use crate::Pallet as MultisigVerifier;
 use bridge_types::EVMChainId;
 
-fn initial_keys() -> Vec<ecdsa::Public> {
-    vec![
-        ecdsa::Pair::generate_with_phrase(Some("Alice")).0.into(),
-        ecdsa::Pair::generate_with_phrase(Some("Bob")).0.into(),
-        ecdsa::Pair::generate_with_phrase(Some("Carol")).0.into(),
-    ]
+fn initial_keys(n: usize) -> Vec<ecdsa::Public> {
+    let mut keys = Vec::new();
+    for i in 0..n {
+        keys.push(ecdsa::Pair::generate_with_phrase(Some(format!("key{}", i).as_str())).0.into());
+    }
+
+    keys
 }
 
-
+fn initialize_network<T: Config>(network_id: GenericNetworkId, n: usize) {
+    let keys = initial_keys(n);
+    assert_ok!(MultisigVerifier::<T>::initialize(RawOrigin::Root.into(), network_id, keys));
+}
 
 fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 	frame_system::Pallet::<T>::assert_last_event(generic_event.into());
 }
 
 benchmarks! {
-
+    // todo: do bench according to number of keys
     initialize_evm {
+        let n in 1 .. 10;
         let network_id = bridge_types::GenericNetworkId::EVM(EVMChainId::from(1));
-        let keys = initial_keys();
+        let keys = initial_keys(n as usize);
     }: initialize(RawOrigin::Root, network_id, keys)
     verify {
         assert_last_event::<T>(Event::NetworkInitialized(network_id).into())
     }
 
-    // add_peer {
-    //     /* code to set the initial state */
-    // }: _(origin, key)
-    // verify {
-    //     /* optional verification */
-    // }
+    add_peer {
+        let network_id = bridge_types::GenericNetworkId::EVM(EVMChainId::from(1));
 
-    // remove_peer {
-    //     /* code to set the initial state */
-    // }: _(origin, key)
-    // verify {
-    //     /* optional verification */
-    // }
+        initialize_network::<T>(network_id,3);
+        assert_last_event::<T>(Event::NetworkInitialized(network_id).into());
+        let key = ecdsa::Pair::generate_with_phrase(Some("Alice")).0.into();
+    }: _(RawOrigin::Root, key)
+    verify {
+        assert_last_event::<T>(Event::PeerAdded(key).into())
+    }
+
+    remove_peer {
+        let network_id = bridge_types::GenericNetworkId::EVM(EVMChainId::from(1));
+
+        initialize_network::<T>(network_id, 3);
+        let key = ecdsa::Pair::generate_with_phrase(Some("key0")).0.into();
+    }: _(RawOrigin::Root, key)
+    verify {
+        assert_last_event::<T>(Event::PeerRemoved(key).into())
+    }
 
     impl_benchmark_test_suite!(MultisigVerifier, crate::mock::new_test_ext(), mock::Test)
 }
